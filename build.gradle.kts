@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    jacoco
     id("com.diffplug.spotless") version "7.0.2"
     id("com.vanniktech.maven.publish") version "0.30.0"
 }
@@ -28,6 +29,37 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    classDirectories.setFrom(
+        files(classDirectories.files.map {
+            fileTree(it) {
+                exclude(
+                    "io/rdapapi/client/responses/**",
+                    "io/rdapapi/client/Version.class",
+                )
+            }
+        })
+    )
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                minimum = "0.95".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 spotless {
