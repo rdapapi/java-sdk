@@ -30,6 +30,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Lint
+        if: matrix.java-version == '21'
         run: ./gradlew spotlessCheck
 
       - name: Run tests
