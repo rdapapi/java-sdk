@@ -23,7 +23,7 @@ jobs:
         java-version: ["17", "21"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Java ${{ matrix.java-version }}
         uses: actions/setup-java@v4
@@ -39,4 +39,4 @@ jobs:
         run: ./gradlew spotlessCheck
 
       - name: Run tests
-        run: ./gradlew check
+        run: ./gradlew test jacocoTestCoverageVerification
