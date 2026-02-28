@@ -118,6 +118,27 @@ class ResponsesTest {
   }
 
   @Test
+  void datesConvenienceMethods() throws Exception {
+    DomainResponse r = RdapClient.MAPPER.readValue(Fixtures.domainResponse(), DomainResponse.class);
+    assertThat(r.getDates().getRegisteredAt()).isNotNull();
+    assertThat(r.getDates().getRegisteredAt().toString()).isEqualTo("1997-09-15T04:00:00Z");
+    assertThat(r.getDates().getExpiresAt()).isNotNull();
+    assertThat(r.getDates().getExpiresInDays()).isGreaterThan(0);
+    assertThat(r.getDates().getUpdatedAt()).isNull();
+  }
+
+  @Test
+  void datesNullFieldsReturnNull() throws Exception {
+    String json =
+        "{\"domain\":\"test.com\",\"registrar\":{},\"dates\":{},\"entities\":{},\"meta\":{"
+            + "\"rdap_server\":\"x\",\"raw_rdap_url\":\"x\",\"cached\":false,\"cache_expires\":\"x\"}}";
+    DomainResponse r = RdapClient.MAPPER.readValue(json, DomainResponse.class);
+    assertThat(r.getDates().getRegisteredAt()).isNull();
+    assertThat(r.getDates().getExpiresAt()).isNull();
+    assertThat(r.getDates().getExpiresInDays()).isNull();
+  }
+
+  @Test
   void unknownFieldsIgnored() throws Exception {
     String json =
         "{\"domain\":\"test.com\",\"unknown_field\":\"value\","
