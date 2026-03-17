@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+echo "Running lint..."
+./gradlew spotlessCheck
+
+echo "Running tests..."
+./gradlew test jacocoTestCoverageVerification
+
+echo "All checks passed."

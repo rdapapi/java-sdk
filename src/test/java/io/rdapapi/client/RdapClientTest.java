@@ -432,7 +432,10 @@ class RdapClientTest {
         new MockResponse()
             .setResponseCode(503)
             .setHeader("Retry-After", "300")
-            .setBody(Fixtures.errorResponse("temporarily_unavailable", "Data for this domain is temporarily unavailable.")));
+            .setBody(
+                Fixtures.errorResponse(
+                    "temporarily_unavailable",
+                    "Data for this domain is temporarily unavailable.")));
     RdapClient client = createClient();
     assertThatThrownBy(() -> client.domain("test.com"))
         .isInstanceOf(TemporarilyUnavailableException.class)
@@ -450,7 +453,10 @@ class RdapClientTest {
     server.enqueue(
         new MockResponse()
             .setResponseCode(503)
-            .setBody(Fixtures.errorResponse("temporarily_unavailable", "Data for this domain is temporarily unavailable.")));
+            .setBody(
+                Fixtures.errorResponse(
+                    "temporarily_unavailable",
+                    "Data for this domain is temporarily unavailable.")));
     RdapClient client = createClient();
     assertThatThrownBy(() -> client.domain("test.com"))
         .isInstanceOf(TemporarilyUnavailableException.class)

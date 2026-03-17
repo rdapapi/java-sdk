@@ -62,7 +62,8 @@ class ExceptionsTest {
 
   @Test
   void temporarilyUnavailableExceptionWithRetryAfter() {
-    TemporarilyUnavailableException ex = new TemporarilyUnavailableException("unavailable", "temporarily_unavailable", 300);
+    TemporarilyUnavailableException ex =
+        new TemporarilyUnavailableException("unavailable", "temporarily_unavailable", 300);
     assertThat(ex.getStatusCode()).isEqualTo(503);
     assertThat(ex.getRetryAfter()).isEqualTo(300);
     assertThat(ex).isInstanceOf(RdapApiException.class);
@@ -70,7 +71,8 @@ class ExceptionsTest {
 
   @Test
   void temporarilyUnavailableExceptionWithoutRetryAfter() {
-    TemporarilyUnavailableException ex = new TemporarilyUnavailableException("unavailable", "temporarily_unavailable", null);
+    TemporarilyUnavailableException ex =
+        new TemporarilyUnavailableException("unavailable", "temporarily_unavailable", null);
     assertThat(ex.getRetryAfter()).isNull();
   }
 

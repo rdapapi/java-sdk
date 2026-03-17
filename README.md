@@ -166,8 +166,9 @@ try {
 | `NotFoundException` | 404 | No RDAP data found |
 | `RateLimitException` | 429 | Rate limit or quota exceeded |
 | `UpstreamException` | 502 | Upstream RDAP server failure |
+| `TemporarilyUnavailableException` | 503 | Domain data temporarily unavailable |
 
-All exceptions expose `getStatusCode()`, `getErrorCode()`, and `getMessage()`. `RateLimitException` also has `getRetryAfter()` (Integer or null).
+All exceptions expose `getStatusCode()`, `getErrorCode()`, and `getMessage()`. `RateLimitException` and `TemporarilyUnavailableException` also have `getRetryAfter()` (Integer or null).
 
 Network errors (`IOException`, `InterruptedException`) are checked exceptions that propagate from `java.net.http.HttpClient`.
 
@@ -187,6 +188,14 @@ if (domain.getEntities().getRegistrant() != null) {
 ```
 
 List fields (`getStatus()`, `getNameservers()`, `getCidr()`, etc.) never return null — they return an empty unmodifiable list when absent.
+
+## Development
+
+Set up pre-commit hooks (runs lint + tests before each commit):
+
+```bash
+git config core.hooksPath .githooks
+```
 
 ## License
 
