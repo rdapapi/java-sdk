@@ -175,7 +175,7 @@ public final class RdapClient implements AutoCloseable {
     }
 
     Integer retryAfter = null;
-    if (response.statusCode() == 429) {
+    if (response.statusCode() == 429 || response.statusCode() == 503) {
       String retryHeader = response.headers().firstValue("Retry-After").orElse(null);
       if (retryHeader != null) {
         try {
@@ -204,6 +204,8 @@ public final class RdapClient implements AutoCloseable {
         return new RateLimitException(message, errorCode, retryAfter);
       case 502:
         return new UpstreamException(message, errorCode);
+      case 503:
+        return new TemporarilyUnavailableException(message, errorCode, retryAfter);
       default:
         return new RdapApiException(message, statusCode, errorCode);
     }

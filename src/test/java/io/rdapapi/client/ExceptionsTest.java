@@ -61,6 +61,20 @@ class ExceptionsTest {
   }
 
   @Test
+  void temporarilyUnavailableExceptionWithRetryAfter() {
+    TemporarilyUnavailableException ex = new TemporarilyUnavailableException("unavailable", "temporarily_unavailable", 300);
+    assertThat(ex.getStatusCode()).isEqualTo(503);
+    assertThat(ex.getRetryAfter()).isEqualTo(300);
+    assertThat(ex).isInstanceOf(RdapApiException.class);
+  }
+
+  @Test
+  void temporarilyUnavailableExceptionWithoutRetryAfter() {
+    TemporarilyUnavailableException ex = new TemporarilyUnavailableException("unavailable", "temporarily_unavailable", null);
+    assertThat(ex.getRetryAfter()).isNull();
+  }
+
+  @Test
   void upstreamException() {
     UpstreamException ex = new UpstreamException("upstream fail", "lookup_failed");
     assertThat(ex.getStatusCode()).isEqualTo(502);
