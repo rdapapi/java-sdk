@@ -10,7 +10,7 @@ Official Java SDK for the [RDAP API](https://rdapapi.io) — look up domains, IP
 ### Gradle
 
 ```kotlin
-implementation("io.rdapapi:rdapapi-java:0.1.0")
+implementation("io.rdapapi:rdapapi-java:0.5.0")
 ```
 
 ### Maven
@@ -19,7 +19,7 @@ implementation("io.rdapapi:rdapapi-java:0.1.0")
 <dependency>
     <groupId>io.rdapapi</groupId>
     <artifactId>rdapapi-java</artifactId>
-    <version>0.1.0</version>
+    <version>0.5.0</version>
 </dependency>
 ```
 
@@ -138,6 +138,53 @@ for (BulkDomainResult result : resp.getResults()) {
 }
 ```
 
+## Supported TLDs Catalog
+
+List every TLD the API can resolve, with the date support was added and a qualitative summary of which fields the registry's RDAP server populates. Does not count against your monthly quota.
+
+```java
+import io.rdapapi.client.TldsOptions;
+import io.rdapapi.client.responses.TldEntry;
+import io.rdapapi.client.responses.TldListResponse;
+
+TldListResponse tlds = client.tlds();
+System.out.printf(
+    "%d TLDs, coverage %.0f%%%n",
+    tlds.getMeta().getCount(), tlds.getMeta().getCoverage() * 100);
+
+for (TldEntry tld : tlds.getData()) {
+    if (tld.getFieldAvailability() != null) {
+        System.out.printf(
+            "%s: expires_at=%s%n",
+            tld.getTld(), tld.getFieldAvailability().getExpiresAt().toWire());
+    }
+}
+```
+
+Filter to recent additions or to a single registry:
+
+```java
+TldListResponse recent = client.tlds(new TldsOptions().since("2026-04-01T00:00:00Z"));
+TldListResponse verisign = client.tlds(new TldsOptions().server("rdap.verisign.com"));
+```
+
+Pass back the previous ETag to skip the transfer when nothing has changed. The method returns `null` on HTTP 304:
+
+```java
+TldListResponse first = client.tlds();
+TldListResponse later = client.tlds(new TldsOptions().ifNoneMatch(first.getEtag()));
+if (later == null) {
+    System.out.println("No change since last poll");
+}
+```
+
+Look up a single TLD:
+
+```java
+TldResponse com = client.tld("com");
+System.out.println(com.getData().getRdapServerHost()); // "rdap.verisign.com"
+```
+
 ## Error Handling
 
 All API errors are thrown as unchecked exceptions that extend `RdapApiException`:
@@ -146,9 +193,12 @@ All API errors are thrown as unchecked exceptions that extend `RdapApiException`
 import io.rdapapi.client.exceptions.*;
 
 try {
-    client.domain("example.com");
+    client.domain("example.nope");
+    // Catch NotSupportedException before NotFoundException: it's a subclass.
+} catch (NotSupportedException e) {
+    System.out.println("TLD not covered by RDAP: " + e.getMessage());
 } catch (NotFoundException e) {
-    System.out.println("Not found: " + e.getMessage());
+    System.out.println("Domain not registered: " + e.getMessage());
 } catch (RateLimitException e) {
     System.out.println("Rate limited, retry after " + e.getRetryAfter() + " seconds");
 } catch (AuthenticationException e) {
@@ -158,12 +208,15 @@ try {
 }
 ```
 
+`NotSupportedException` extends `NotFoundException`, so catching `NotFoundException` still handles both cases.
+
 | Exception | HTTP Status | Description |
 |---|---|---|
 | `ValidationException` | 400 | Invalid input |
 | `AuthenticationException` | 401 | Invalid or missing API key |
 | `SubscriptionRequiredException` | 403 | No active subscription |
-| `NotFoundException` | 404 | No RDAP data found |
+| `NotFoundException` | 404 | Namespace is covered but no record exists |
+| `NotSupportedException` | 404 | Namespace (TLD, IP range, ASN range) is not covered by RDAP |
 | `RateLimitException` | 429 | Rate limit or quota exceeded |
 | `UpstreamException` | 502 | Upstream RDAP server failure |
 | `TemporarilyUnavailableException` | 503 | Domain data temporarily unavailable |

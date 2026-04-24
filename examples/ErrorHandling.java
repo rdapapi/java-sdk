@@ -12,9 +12,12 @@ public class ErrorHandling {
 
     try (RdapClient client = new RdapClient(apiKey)) {
       try {
-        client.domain("example.com");
+        client.domain("example.nope");
+        // Catch NotSupportedException before NotFoundException: it's a subclass.
+      } catch (NotSupportedException e) {
+        System.out.println("TLD not covered by RDAP: " + e.getMessage());
       } catch (NotFoundException e) {
-        System.out.println("Not found: " + e.getMessage());
+        System.out.println("Domain not registered: " + e.getMessage());
       } catch (RateLimitException e) {
         System.out.println("Rate limited, retry after " + e.getRetryAfter() + " seconds");
       } catch (AuthenticationException e) {

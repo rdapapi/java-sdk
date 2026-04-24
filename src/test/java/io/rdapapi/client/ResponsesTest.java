@@ -149,6 +149,67 @@ class ResponsesTest {
   }
 
   @Test
+  void parseTldListResponse() throws Exception {
+    TldListResponse r = RdapClient.MAPPER.readValue(Fixtures.tldsResponse(), TldListResponse.class);
+    assertThat(r.getMeta().getCount()).isEqualTo(2);
+    assertThat(r.getMeta().getCoverage()).isEqualTo(0.5);
+    assertThat(r.getMeta().getComputedAt()).isEqualTo("2026-04-22T10:00:00Z");
+    assertThat(r.getMeta().getThresholds().getAlways()).isEqualTo(0.99);
+    assertThat(r.getMeta().getThresholds().getUsually()).isEqualTo(0.8);
+    assertThat(r.getMeta().getThresholds().getSometimes()).isEqualTo(0.0);
+    assertThat(r.getData()).hasSize(2);
+    assertThat(r.getData().get(0).getTld()).isEqualTo("com");
+    assertThat(r.getData().get(0).getSupportedSince()).isEqualTo("2026-03-07T00:00:00Z");
+    assertThat(r.getData().get(0).getRdapServerHost()).isEqualTo("rdap.verisign.com");
+    assertThat(r.getData().get(0).getRdapServerUrl())
+        .isEqualTo("https://rdap.verisign.com/com/v1/");
+    assertThat(r.getData().get(0).getFieldAvailability()).isNotNull();
+    assertThat(r.getData().get(0).getFieldAvailability().getRegistrar())
+        .isEqualTo(AvailabilityLevel.SOMETIMES);
+    assertThat(r.getData().get(0).getFieldAvailability().getRegisteredAt())
+        .isEqualTo(AvailabilityLevel.ALWAYS);
+    assertThat(r.getData().get(0).getFieldAvailability().getExpiresAt())
+        .isEqualTo(AvailabilityLevel.ALWAYS);
+    assertThat(r.getData().get(0).getFieldAvailability().getNameservers())
+        .isEqualTo(AvailabilityLevel.ALWAYS);
+    assertThat(r.getData().get(0).getFieldAvailability().getStatus())
+        .isEqualTo(AvailabilityLevel.ALWAYS);
+    assertThat(r.getData().get(1).getFieldAvailability()).isNull();
+  }
+
+  @Test
+  void parseTldResponse() throws Exception {
+    TldResponse r = RdapClient.MAPPER.readValue(Fixtures.tldResponse(), TldResponse.class);
+    assertThat(r.getData().getTld()).isEqualTo("com");
+    assertThat(r.getMeta().getComputedAt()).isEqualTo("2026-04-22T10:00:00Z");
+    assertThat(r.getMeta().getThresholds().getAlways()).isEqualTo(0.99);
+  }
+
+  @Test
+  void tldListResponseEmptyDataDefaultsToEmptyList() throws Exception {
+    String json =
+        "{\"meta\":{\"computed_at\":\"\",\"count\":0,\"coverage\":0,"
+            + "\"thresholds\":{\"always\":0,\"usually\":0,\"sometimes\":0}}}";
+    TldListResponse r = RdapClient.MAPPER.readValue(json, TldListResponse.class);
+    assertThat(r.getData()).isEmpty();
+  }
+
+  @Test
+  void availabilityLevelRejectsUnknownValue() {
+    assertThatThrownBy(() -> AvailabilityLevel.fromWire("bogus"))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void availabilityLevelRoundTripsWireValue() {
+    assertThat(AvailabilityLevel.ALWAYS.toWire()).isEqualTo("always");
+    assertThat(AvailabilityLevel.USUALLY.toWire()).isEqualTo("usually");
+    assertThat(AvailabilityLevel.SOMETIMES.toWire()).isEqualTo("sometimes");
+    assertThat(AvailabilityLevel.NEVER.toWire()).isEqualTo("never");
+    assertThat(AvailabilityLevel.fromWire("never")).isEqualTo(AvailabilityLevel.NEVER);
+  }
+
+  @Test
   void emptyListFieldsDefaultToEmpty() throws Exception {
     String json =
         "{\"domain\":\"test.com\",\"registrar\":{},\"dates\":{},\"entities\":{},\"meta\":{"

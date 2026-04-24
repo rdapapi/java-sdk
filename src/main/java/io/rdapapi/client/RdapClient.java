@@ -84,6 +84,57 @@ public final class RdapClient implements AutoCloseable {
     return MAPPER.readValue(body, EntityResponse.class);
   }
 
+  public TldListResponse tlds() throws IOException, InterruptedException {
+    return tlds(new TldsOptions());
+  }
+
+  /**
+   * List every TLD the API can resolve via RDAP.
+   *
+   * <p>Does not count against the monthly quota. Returns {@code null} when {@link
+   * TldsOptions#ifNoneMatch(String)} is provided and matches the server's current ETag (HTTP 304).
+   * Otherwise returns a {@link TldListResponse} whose {@link TldListResponse#getEtag()} can be
+   * passed back on a later call to skip unchanged transfers.
+   */
+  public TldListResponse tlds(TldsOptions options) throws IOException, InterruptedException {
+    StringBuilder path = new StringBuilder("/tlds");
+    boolean hasQuery = false;
+    if (options.getSince() != null) {
+      path.append('?').append("since=").append(urlEncode(options.getSince()));
+      hasQuery = true;
+    }
+    if (options.getServer() != null) {
+      path.append(hasQuery ? '&' : '?').append("server=").append(urlEncode(options.getServer()));
+    }
+    HttpResponse<byte[]> response = doConditionalGet(path.toString(), options.getIfNoneMatch());
+    if (response.statusCode() == 304) {
+      return null;
+    }
+    TldListResponse result = MAPPER.readValue(response.body(), TldListResponse.class);
+    result.setEtag(response.headers().firstValue("ETag").orElse(null));
+    return result;
+  }
+
+  public TldResponse tld(String tld) throws IOException, InterruptedException {
+    return tld(tld, new TldOptions());
+  }
+
+  /**
+   * Return catalog metadata for a single TLD.
+   *
+   * <p>Does not count against the monthly quota. Returns {@code null} on HTTP 304. Throws {@link
+   * io.rdapapi.client.exceptions.NotFoundException} when no RDAP server is registered for the TLD.
+   */
+  public TldResponse tld(String tld, TldOptions options) throws IOException, InterruptedException {
+    HttpResponse<byte[]> response = doConditionalGet("/tlds/" + tld, options.getIfNoneMatch());
+    if (response.statusCode() == 304) {
+      return null;
+    }
+    TldResponse result = MAPPER.readValue(response.body(), TldResponse.class);
+    result.setEtag(response.headers().firstValue("ETag").orElse(null));
+    return result;
+  }
+
   public BulkDomainResponse bulkDomains(List<String> domains)
       throws IOException, InterruptedException {
     return bulkDomains(domains, new DomainOptions());
@@ -159,6 +210,34 @@ public final class RdapClient implements AutoCloseable {
     return response.body();
   }
 
+  private HttpResponse<byte[]> doConditionalGet(String path, String ifNoneMatch)
+      throws IOException, InterruptedException {
+    HttpRequest.Builder builder =
+        HttpRequest.newBuilder()
+            .uri(URI.create(baseUrl + path))
+            .header("Authorization", authHeader)
+            .header("User-Agent", userAgent)
+            .header("Accept", "application/json")
+            .GET();
+    if (ifNoneMatch != null) {
+      builder.header("If-None-Match", ifNoneMatch);
+    }
+    HttpResponse<byte[]> response =
+        httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());
+
+    if (response.statusCode() == 304) {
+      return response;
+    }
+    if (response.statusCode() >= 400) {
+      handleError(response);
+    }
+    return response;
+  }
+
+  private static String urlEncode(String value) {
+    return java.net.URLEncoder.encode(value, java.nio.charset.StandardCharsets.UTF_8);
+  }
+
   private void handleError(HttpResponse<byte[]> response) {
     String errorCode = "unknown_error";
     String message = "HTTP " + response.statusCode();
@@ -199,6 +278,9 @@ public final class RdapClient implements AutoCloseable {
       case 403:
         return new SubscriptionRequiredException(message, errorCode);
       case 404:
+        if ("not_supported".equals(errorCode)) {
+          return new NotSupportedException(message, errorCode);
+        }
         return new NotFoundException(message, errorCode);
       case 429:
         return new RateLimitException(message, errorCode, retryAfter);

@@ -47,6 +47,15 @@ class ExceptionsTest {
   }
 
   @Test
+  void notSupportedExceptionExtendsNotFound() {
+    NotSupportedException ex = new NotSupportedException("TLD not supported", "not_supported");
+    assertThat(ex.getStatusCode()).isEqualTo(404);
+    assertThat(ex.getErrorCode()).isEqualTo("not_supported");
+    assertThat(ex).isInstanceOf(NotFoundException.class);
+    assertThat(ex).isInstanceOf(RdapApiException.class);
+  }
+
+  @Test
   void rateLimitExceptionWithRetryAfter() {
     RateLimitException ex = new RateLimitException("rate limited", "rate_limit_exceeded", 60);
     assertThat(ex.getStatusCode()).isEqualTo(429);

@@ -45,6 +45,13 @@ class RdapClientTest {
   }
 
   @Test
+  void singleArgConstructorWorks() {
+    RdapClient client = new RdapClient("api-key");
+    assertThat(client).isNotNull();
+    client.close();
+  }
+
+  @Test
   void constructorRejectsEmptyApiKey() {
     assertThatThrownBy(() -> new RdapClient(""))
         .isInstanceOf(IllegalArgumentException.class)
@@ -375,7 +382,40 @@ class RdapClientTest {
             .setResponseCode(404)
             .setBody(Fixtures.errorResponse("not_found", "No RDAP data found.")));
     RdapClient client = createClient();
-    assertThatThrownBy(() -> client.domain("nope.example")).isInstanceOf(NotFoundException.class);
+    assertThatThrownBy(() -> client.domain("nope.example"))
+        .isInstanceOf(NotFoundException.class)
+        .isNotInstanceOf(NotSupportedException.class);
+    client.close();
+  }
+
+  @Test
+  void error404WithNotSupportedCodeThrowsNotSupportedException() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(404)
+            .setBody(Fixtures.errorResponse("not_supported", "The TLD '.nope' is not supported.")));
+    RdapClient client = createClient();
+    assertThatThrownBy(() -> client.domain("example.nope"))
+        .isInstanceOf(NotSupportedException.class)
+        // Backwards compatible: NotSupportedException extends NotFoundException.
+        .isInstanceOf(NotFoundException.class)
+        .satisfies(
+            ex -> {
+              NotSupportedException e = (NotSupportedException) ex;
+              assertThat(e.getErrorCode()).isEqualTo("not_supported");
+              assertThat(e.getStatusCode()).isEqualTo(404);
+            });
+    client.close();
+  }
+
+  @Test
+  void notSupportedRoutingAppliesToIpLookupToo() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(404)
+            .setBody(Fixtures.errorResponse("not_supported", "No RIR covers this IP range.")));
+    RdapClient client = createClient();
+    assertThatThrownBy(() -> client.ip("203.0.113.1")).isInstanceOf(NotSupportedException.class);
     client.close();
   }
 
@@ -515,6 +555,131 @@ class RdapClientTest {
     RdapClient client = createClient();
     assertThatThrownBy(() -> client.bulkDomains(Collections.singletonList("test.com")))
         .isInstanceOf(SubscriptionRequiredException.class);
+    client.close();
+  }
+
+  // --- TLDs ---
+
+  @Test
+  void tldsListReturnsEntriesWithEtag() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setBody(Fixtures.tldsResponse())
+            .setHeader("Content-Type", "application/json")
+            .setHeader("ETag", "\"abc\""));
+    RdapClient client = createClient();
+
+    TldListResponse result = client.tlds();
+
+    assertThat(result).isNotNull();
+    assertThat(result.getMeta().getCount()).isEqualTo(2);
+    assertThat(result.getMeta().getCoverage()).isEqualTo(0.5);
+    assertThat(result.getMeta().getThresholds().getAlways()).isEqualTo(0.99);
+    assertThat(result.getData()).hasSize(2);
+    assertThat(result.getData().get(0).getTld()).isEqualTo("com");
+    assertThat(result.getData().get(0).getFieldAvailability()).isNotNull();
+    assertThat(result.getData().get(0).getFieldAvailability().getRegisteredAt())
+        .isEqualTo(AvailabilityLevel.ALWAYS);
+    assertThat(result.getData().get(1).getFieldAvailability()).isNull();
+    assertThat(result.getEtag()).isEqualTo("\"abc\"");
+    client.close();
+  }
+
+  @Test
+  void tldsForwardsSinceAndServerQueryParams() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setBody(Fixtures.tldsResponse())
+            .setHeader("Content-Type", "application/json"));
+    RdapClient client = createClient();
+
+    client.tlds(new TldsOptions().since("2026-04-01T00:00:00Z").server("rdap.verisign.com"));
+
+    RecordedRequest request = server.takeRequest();
+    String path = request.getPath();
+    assertThat(path).contains("since=2026-04-01T00%3A00%3A00Z");
+    assertThat(path).contains("server=rdap.verisign.com");
+    client.close();
+  }
+
+  @Test
+  void tldsReturnsNullOnNotModified() throws Exception {
+    server.enqueue(new MockResponse().setResponseCode(304));
+    RdapClient client = createClient();
+
+    TldListResponse result = client.tlds(new TldsOptions().ifNoneMatch("\"abc\""));
+
+    assertThat(result).isNull();
+    RecordedRequest request = server.takeRequest();
+    assertThat(request.getHeader("If-None-Match")).isEqualTo("\"abc\"");
+    client.close();
+  }
+
+  @Test
+  void tldsRaisesTypedErrorOnFailure() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(401)
+            .setBody(Fixtures.errorResponse("unauthenticated", "Invalid API token.")));
+    RdapClient client = createClient();
+
+    assertThatThrownBy(client::tlds).isInstanceOf(AuthenticationException.class);
+    client.close();
+  }
+
+  @Test
+  void tldsNullEtagWhenServerOmitsHeader() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setBody(Fixtures.tldsResponse())
+            .setHeader("Content-Type", "application/json"));
+    RdapClient client = createClient();
+
+    TldListResponse result = client.tlds();
+
+    assertThat(result.getEtag()).isNull();
+    client.close();
+  }
+
+  @Test
+  void tldReturnsSingleEntry() throws Exception {
+    server.enqueue(
+        new MockResponse()
+            .setBody(Fixtures.tldResponse())
+            .setHeader("Content-Type", "application/json")
+            .setHeader("ETag", "\"com-1\""));
+    RdapClient client = createClient();
+
+    TldResponse result = client.tld("com");
+
+    assertThat(result.getData().getTld()).isEqualTo("com");
+    assertThat(result.getMeta().getThresholds().getUsually()).isEqualTo(0.8);
+    assertThat(result.getEtag()).isEqualTo("\"com-1\"");
+    client.close();
+  }
+
+  @Test
+  void tldReturnsNullOnNotModified() throws Exception {
+    server.enqueue(new MockResponse().setResponseCode(304));
+    RdapClient client = createClient();
+
+    TldResponse result = client.tld("com", new TldOptions().ifNoneMatch("\"com-1\""));
+
+    assertThat(result).isNull();
+    client.close();
+  }
+
+  @Test
+  void tldThrowsNotFoundForUnknownTld() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(404)
+            .setBody(
+                Fixtures.errorResponse(
+                    "not_found", "No RDAP server is registered for the TLD 'nope'.")));
+    RdapClient client = createClient();
+
+    assertThatThrownBy(() -> client.tld("nope")).isInstanceOf(NotFoundException.class);
     client.close();
   }
 
