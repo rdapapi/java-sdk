@@ -160,7 +160,7 @@ public final class Fixtures {
         + "\"name\":\"Abuse\","
         + "\"organization\":null,"
         + "\"email\":\"network-abuse@google.com\","
-        + "\"phone\":\"+1-650-253-0000\","
+        + "\"phone\":\"+16502530000\","
         + "\"address\":null,"
         + "\"contact_url\":null,"
         + "\"country_code\":null"
