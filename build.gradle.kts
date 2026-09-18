@@ -48,6 +48,9 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // Version.SDK feeds the User-Agent, so VersionTest compares it against the
+    // build's own version rather than trusting the two to be bumped together.
+    systemProperty("project.version", project.version.toString())
     finalizedBy(tasks.jacocoTestReport)
 }
 
