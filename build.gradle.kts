@@ -17,6 +17,20 @@ repositories {
     mavenCentral()
 }
 
+// The canary probes production, so it gets its own source set rather than a tag inside src/test:
+// `check` runs offline behind a 95% coverage gate, and neither the task nor the coverage
+// verification can then reach it by accident.
+sourceSets {
+    create("canary") {
+        compileClasspath += sourceSets.main.get().output
+        runtimeClasspath += sourceSets.main.get().output
+    }
+}
+
+val canaryImplementation: Configuration by configurations.getting {
+    extendsFrom(configurations.api.get(), configurations.implementation.get())
+}
+
 dependencies {
     api("com.fasterxml.jackson.core:jackson-databind:2.18.2")
 
@@ -25,6 +39,11 @@ dependencies {
     testImplementation("org.assertj:assertj-core:3.27.3")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    canaryImplementation(platform("org.junit:junit-bom:5.11.4"))
+    canaryImplementation("org.junit.jupiter:junit-jupiter")
+    canaryImplementation("org.assertj:assertj-core:3.27.3")
+    "canaryRuntimeOnly"("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
@@ -60,6 +79,21 @@ tasks.jacocoTestCoverageVerification {
 
 tasks.check {
     dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+// Deliberately not wired into `check`: it needs the network and RDAPAPI_API_KEY.
+tasks.register<Test>("canary") {
+    group = "verification"
+    description = "Probes the production API through the SDK's public surface."
+    testClassesDirs = sourceSets["canary"].output.classesDirs
+    classpath = sourceSets["canary"].runtimeClasspath
+    useJUnitPlatform()
+    outputs.upToDateWhen { false }
+    testLogging {
+        events("passed", "failed")
+        showStandardStreams = true
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 spotless {

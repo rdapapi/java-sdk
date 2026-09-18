@@ -1,0 +1,49 @@
+name: Canary
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Production probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check the canary is configured
+        id: key
+        env:
+          RDAPAPI_API_KEY: ${{ secrets.RDAPAPI_API_KEY }}
+        run: |
+          if [ -z "$RDAPAPI_API_KEY" ]; then
+            echo "::warning::RDAPAPI_API_KEY is not set; the production canary is unconfigured and did not run."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Probe production
+        if: steps.key.outputs.configured == 'true'
+        env:
+          RDAPAPI_API_KEY: ${{ secrets.RDAPAPI_API_KEY }}
+        run: ./gradlew canary
