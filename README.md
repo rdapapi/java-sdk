@@ -10,7 +10,7 @@ Official Java SDK for the [RDAP API](https://rdapapi.io) — look up domains, IP
 ### Gradle
 
 ```kotlin
-implementation("io.rdapapi:rdapapi-java:0.5.0")
+implementation("io.rdapapi:rdapapi-java:0.6.0")
 ```
 
 ### Maven
@@ -19,7 +19,7 @@ implementation("io.rdapapi:rdapapi-java:0.5.0")
 <dependency>
     <groupId>io.rdapapi</groupId>
     <artifactId>rdapapi-java</artifactId>
-    <version>0.5.0</version>
+    <version>0.6.0</version>
 </dependency>
 ```
 
