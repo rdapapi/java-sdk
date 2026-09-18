@@ -19,8 +19,10 @@ public final class IpResponse {
   private Dates dates;
   private Entities entities;
   private List<String> cidr;
+  private String geofeed;
   private List<Remark> remarks;
   private String port43;
+  private Redaction redacted;
   private Meta meta;
 
   private IpResponse() {}
@@ -73,12 +75,25 @@ public final class IpResponse {
     return cidr != null ? Collections.unmodifiableList(cidr) : Collections.emptyList();
   }
 
+  /**
+   * URL of the RFC 8805 geofeed this network publishes, as published: never fetched, and never
+   * inherited from a parent network. Null when there is none.
+   */
+  public String getGeofeed() {
+    return geofeed;
+  }
+
   public List<Remark> getRemarks() {
     return remarks != null ? Collections.unmodifiableList(remarks) : Collections.emptyList();
   }
 
   public String getPort43() {
     return port43;
+  }
+
+  /** What the upstream server declared it withheld, or null when it declared nothing. */
+  public Redaction getRedacted() {
+    return redacted;
   }
 
   public Meta getMeta() {

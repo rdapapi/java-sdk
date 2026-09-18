@@ -14,8 +14,9 @@ public final class DomainResponse {
   private Registrar registrar;
   private Dates dates;
   private List<String> nameservers;
-  private boolean dnssec;
+  private Boolean dnssec;
   private Entities entities;
+  private Redaction redacted;
   private Meta meta;
 
   private DomainResponse() {}
@@ -28,8 +29,9 @@ public final class DomainResponse {
       Registrar registrar,
       Dates dates,
       List<String> nameservers,
-      boolean dnssec,
+      Boolean dnssec,
       Entities entities,
+      Redaction redacted,
       Meta meta) {
     this.domain = domain;
     this.unicodeName = unicodeName;
@@ -40,6 +42,7 @@ public final class DomainResponse {
     this.nameservers = nameservers;
     this.dnssec = dnssec;
     this.entities = entities;
+    this.redacted = redacted;
     this.meta = meta;
   }
 
@@ -73,12 +76,21 @@ public final class DomainResponse {
         : Collections.emptyList();
   }
 
-  public boolean isDnssec() {
+  /**
+   * Whether the delegation is signed, or null where the registry publishes no DNSSEC status, as
+   * {@code .tr}, {@code .gg} and {@code .nc} do not.
+   */
+  public Boolean getDnssec() {
     return dnssec;
   }
 
   public Entities getEntities() {
     return entities;
+  }
+
+  /** What the upstream server declared it withheld, or null when it declared nothing. */
+  public Redaction getRedacted() {
+    return redacted;
   }
 
   public Meta getMeta() {

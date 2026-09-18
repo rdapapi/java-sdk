@@ -24,6 +24,7 @@ public final class EntityResponse {
   private Entities entities;
   private List<EntityAutnum> autnums;
   private List<EntityNetwork> networks;
+  private Redaction redacted;
   private Meta meta;
 
   private EntityResponse() {}
@@ -94,6 +95,11 @@ public final class EntityResponse {
 
   public List<EntityNetwork> getNetworks() {
     return networks != null ? Collections.unmodifiableList(networks) : Collections.emptyList();
+  }
+
+  /** What the upstream server declared it withheld, or null when it declared nothing. */
+  public Redaction getRedacted() {
+    return redacted;
   }
 
   public Meta getMeta() {

@@ -3,6 +3,8 @@ package io.rdapapi.client;
 import static org.assertj.core.api.Assertions.*;
 
 import io.rdapapi.client.exceptions.*;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class ExceptionsTest {
@@ -89,7 +91,34 @@ class ExceptionsTest {
   void upstreamException() {
     UpstreamException ex = new UpstreamException("upstream fail", "lookup_failed");
     assertThat(ex.getStatusCode()).isEqualTo(502);
+    assertThat(ex.getRetryAfter()).isNull();
     assertThat(ex).isInstanceOf(RdapApiException.class);
+  }
+
+  @Test
+  void upstreamExceptionWithRetryAfter() {
+    UpstreamException ex = new UpstreamException("upstream fail", "lookup_failed", 60);
+    assertThat(ex.getRetryAfter()).isEqualTo(60);
+  }
+
+  @Test
+  void requestFailedException() {
+    RequestFailedException ex =
+        new RequestFailedException(
+            "The domains field is required.",
+            "request_failed",
+            Map.of("domains", List.of("The domains field is required.")));
+    assertThat(ex.getStatusCode()).isEqualTo(422);
+    assertThat(ex.getErrorCode()).isEqualTo("request_failed");
+    assertThat(ex.getErrors()).containsOnlyKeys("domains");
+    assertThat(ex).isInstanceOf(RdapApiException.class);
+  }
+
+  @Test
+  void requestFailedExceptionWithoutFieldErrors() {
+    RequestFailedException ex =
+        new RequestFailedException("The body failed validation.", "request_failed", null);
+    assertThat(ex.getErrors()).isEmpty();
   }
 
   @Test

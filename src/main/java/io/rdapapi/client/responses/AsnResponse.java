@@ -12,11 +12,13 @@ public final class AsnResponse {
   private String type;
   private Integer startAutnum;
   private Integer endAutnum;
+  private String country;
   private List<String> status;
   private Dates dates;
   private Entities entities;
   private List<Remark> remarks;
   private String port43;
+  private Redaction redacted;
   private Meta meta;
 
   private AsnResponse() {}
@@ -41,6 +43,14 @@ public final class AsnResponse {
     return endAutnum;
   }
 
+  /**
+   * ISO 3166-1 alpha-2 country code, derived from the contact entities' address: the regional
+   * registries carry no top-level country on autnum records. Null when no contact supplies one.
+   */
+  public String getCountry() {
+    return country;
+  }
+
   public List<String> getStatus() {
     return status != null ? Collections.unmodifiableList(status) : Collections.emptyList();
   }
@@ -59,6 +69,11 @@ public final class AsnResponse {
 
   public String getPort43() {
     return port43;
+  }
+
+  /** What the upstream server declared it withheld, or null when it declared nothing. */
+  public Redaction getRedacted() {
+    return redacted;
   }
 
   public Meta getMeta() {

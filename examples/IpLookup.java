@@ -19,11 +19,13 @@ public class IpLookup {
       System.out.println("Country: " + ip.getCountry());
       System.out.println("CIDR: " + String.join(", ", ip.getCidr()));
       System.out.println("Range: " + ip.getStartAddress() + " - " + ip.getEndAddress());
+      System.out.println("Geofeed: " + ip.getGeofeed());
 
       // ASN lookup.
       AsnResponse asn = client.asn(15169);
       System.out.println("\nASN Name: " + asn.getName());
       System.out.println("ASN Handle: " + asn.getHandle());
+      System.out.println("ASN Country: " + asn.getCountry());
 
       // Nameserver lookup.
       NameserverResponse ns = client.nameserver("ns1.google.com");

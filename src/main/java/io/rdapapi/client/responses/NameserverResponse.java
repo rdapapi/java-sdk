@@ -14,6 +14,7 @@ public final class NameserverResponse {
   private List<String> status;
   private Dates dates;
   private Entities entities;
+  private Redaction redacted;
   private Meta meta;
 
   private NameserverResponse() {}
@@ -44,6 +45,11 @@ public final class NameserverResponse {
 
   public Entities getEntities() {
     return entities;
+  }
+
+  /** What the upstream server declared it withheld, or null when it declared nothing. */
+  public Redaction getRedacted() {
+    return redacted;
   }
 
   public Meta getMeta() {

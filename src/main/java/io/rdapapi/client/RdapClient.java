@@ -13,12 +13,21 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 public final class RdapClient implements AutoCloseable {
 
   private static final String DEFAULT_BASE_URL = "https://rdapapi.io/api/v1";
   private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
+  private static final Pattern DELTA_SECONDS = Pattern.compile("\\d+");
 
   static final ObjectMapper MAPPER =
       new ObjectMapper()
@@ -51,12 +60,28 @@ public final class RdapClient implements AutoCloseable {
 
   public DomainResponse domain(String name, DomainOptions options)
       throws IOException, InterruptedException {
-    String path = "/domain/" + name;
+    StringBuilder path = new StringBuilder("/domain/").append(name);
+    boolean hasQuery = false;
     if (options.isFollow()) {
-      path += "?follow=true";
+      path.append("?follow=true");
+      hasQuery = true;
     }
-    byte[] body = doGet(path);
+    if (!options.isWhois()) {
+      path.append(hasQuery ? '&' : '?').append("whois=false");
+    }
+    byte[] body = doGet(path.toString());
     return MAPPER.readValue(body, DomainResponse.class);
+  }
+
+  /**
+   * Liveness probe for uptime monitoring.
+   *
+   * <p>Sent with your API key like every other call, but makes no upstream RDAP call and never
+   * counts against your quota.
+   */
+  public PingResponse ping() throws IOException, InterruptedException {
+    byte[] body = doGet("/ping");
+    return MAPPER.readValue(body, PingResponse.class);
   }
 
   public IpResponse ip(String address) throws IOException, InterruptedException {
@@ -89,7 +114,7 @@ public final class RdapClient implements AutoCloseable {
   }
 
   /**
-   * List every TLD the API can resolve via RDAP.
+   * List every TLD the API can resolve, over RDAP or the WHOIS fallback.
    *
    * <p>Does not count against the monthly quota. Returns {@code null} when {@link
    * TldsOptions#ifNoneMatch(String)} is provided and matches the server's current ETag (HTTP 304).
@@ -150,6 +175,9 @@ public final class RdapClient implements AutoCloseable {
     if (options.isFollow()) {
       root.put("follow", true);
     }
+    if (!options.isWhois()) {
+      root.put("whois", false);
+    }
 
     byte[] responseBody = doPost("/domains/bulk", MAPPER.writeValueAsBytes(root));
 
@@ -157,11 +185,12 @@ public final class RdapClient implements AutoCloseable {
     JsonNode results = tree.get("results");
     if (results != null && results.isArray()) {
       for (JsonNode result : results) {
+        // A successful entry carries its meta beside the data rather than inside it; copy it in
+        // so DomainResponse.getMeta() works the same as on a single lookup.
         if ("success".equals(result.path("status").asText())
             && result.has("data")
             && result.has("meta")) {
           ((ObjectNode) result.get("data")).set("meta", result.get("meta"));
-          ((ObjectNode) result).remove("meta");
         }
       }
     }
@@ -241,8 +270,9 @@ public final class RdapClient implements AutoCloseable {
   private void handleError(HttpResponse<byte[]> response) {
     String errorCode = "unknown_error";
     String message = "HTTP " + response.statusCode();
+    JsonNode body = null;
     try {
-      JsonNode body = MAPPER.readTree(response.body());
+      body = MAPPER.readTree(response.body());
       if (body.has("error")) {
         errorCode = body.get("error").asText();
       }
@@ -253,23 +283,85 @@ public final class RdapClient implements AutoCloseable {
       // non-JSON error body — use defaults
     }
 
-    Integer retryAfter = null;
-    if (response.statusCode() == 429 || response.statusCode() == 503) {
-      String retryHeader = response.headers().firstValue("Retry-After").orElse(null);
-      if (retryHeader != null) {
-        try {
-          retryAfter = Integer.parseInt(retryHeader);
-        } catch (NumberFormatException ignored) {
-          // invalid Retry-After header — leave as null
-        }
-      }
-    }
+    throw createException(
+        response.statusCode(),
+        errorCode,
+        message,
+        retryAfter(response, body),
+        validationErrors(response.statusCode(), body));
+  }
 
-    throw createException(response.statusCode(), errorCode, message, retryAfter);
+  /** Seconds to wait, from the header when there is one and the body otherwise. */
+  private static Integer retryAfter(HttpResponse<byte[]> response, JsonNode body) {
+    int statusCode = response.statusCode();
+    if (statusCode != 429 && statusCode != 502 && statusCode != 503) {
+      return null;
+    }
+    Integer fromHeader = parseRetryAfter(response.headers().firstValue("Retry-After").orElse(null));
+    if (fromHeader != null) {
+      return fromHeader;
+    }
+    if (body != null && body.path("retry_after").isInt()) {
+      return body.get("retry_after").asInt();
+    }
+    return null;
+  }
+
+  /**
+   * A {@code Retry-After} header in either RFC 9110 form.
+   *
+   * <p>The API passes an upstream registry's header through verbatim, so the HTTP-date form really
+   * arrives. A date already past reads as 0, as does a literal {@code 0}; null means the header
+   * yielded nothing, so the caller falls back to the body rather than reading a zero as absent.
+   */
+  private static Integer parseRetryAfter(String header) {
+    if (header == null) {
+      return null;
+    }
+    String value = header.trim();
+    if (DELTA_SECONDS.matcher(value).matches()) {
+      // Clamp rather than overflow: nothing caps the seconds a header may name.
+      return value.length() > 9 ? Integer.MAX_VALUE : Integer.parseInt(value);
+    }
+    try {
+      Instant at = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant();
+      long seconds = Duration.between(Instant.now(), at).getSeconds();
+      return (int) Math.min(Integer.MAX_VALUE, Math.max(0, seconds));
+    } catch (DateTimeParseException ignored) {
+      return null;
+    }
+  }
+
+  /** Per-field messages a 422 names, keyed by field path. */
+  private static Map<String, List<String>> validationErrors(int statusCode, JsonNode body) {
+    if (statusCode != 422 || body == null || !body.path("errors").isObject()) {
+      return null;
+    }
+    Map<String, List<String>> errors = new LinkedHashMap<>();
+    body.get("errors")
+        .fields()
+        .forEachRemaining(
+            field -> {
+              List<String> messages = new ArrayList<>();
+              JsonNode value = field.getValue();
+              // A field usually maps to an array of messages, but a bare string arrives too,
+              // and iterating a value node would silently drop the reason.
+              if (value.isArray()) {
+                value.forEach(node -> messages.add(node.asText()));
+              } else {
+                messages.add(value.asText());
+              }
+              errors.put(field.getKey(), messages);
+            });
+    return errors;
   }
 
   private RdapApiException createException(
-      int statusCode, String errorCode, String message, Integer retryAfter) {
+      int statusCode,
+      String errorCode,
+      String message,
+      Integer retryAfter,
+      Map<String, List<String>> errors) {
     switch (statusCode) {
       case 400:
         return new ValidationException(message, errorCode);
@@ -282,10 +374,12 @@ public final class RdapClient implements AutoCloseable {
           return new NotSupportedException(message, errorCode);
         }
         return new NotFoundException(message, errorCode);
+      case 422:
+        return new RequestFailedException(message, errorCode, errors);
       case 429:
         return new RateLimitException(message, errorCode, retryAfter);
       case 502:
-        return new UpstreamException(message, errorCode);
+        return new UpstreamException(message, errorCode, retryAfter);
       case 503:
         return new TemporarilyUnavailableException(message, errorCode, retryAfter);
       default:

@@ -19,9 +19,47 @@ class ResponsesTest {
     assertThat(r.getDates().getExpires()).isEqualTo("2028-09-14T04:00:00Z");
     assertThat(r.getDates().getUpdated()).isNull();
     assertThat(r.getNameservers()).containsExactly("ns1.google.com");
-    assertThat(r.isDnssec()).isFalse();
+    assertThat(r.getDnssec()).isFalse();
+    assertThat(r.getRedacted()).isNull();
+    assertThat(r.getMeta().getServer()).isEqualTo("rdap.verisign.com");
+    assertThat(r.getMeta().getSource()).isEqualTo("rdap");
     assertThat(r.getMeta().getRdapServer()).isEqualTo("https://rdap.verisign.com/com/v1/");
-    assertThat(r.getMeta().isCached()).isFalse();
+    assertThat(r.getMeta().getCached()).isFalse();
+  }
+
+  @Test
+  void parseWhoisDomainResponse() throws Exception {
+    DomainResponse r =
+        RdapClient.MAPPER.readValue(Fixtures.whoisDomainResponse(), DomainResponse.class);
+    assertThat(r.getDomain()).isEqualTo("example.it");
+    assertThat(r.getDnssec()).isNull();
+    assertThat(r.getMeta().getSource()).isEqualTo("whois");
+    assertThat(r.getMeta().getServer()).isEqualTo("whois.nic.it");
+    assertThat(r.getMeta().getRawRdapUrl()).isNull();
+  }
+
+  @Test
+  void parseRedaction() throws Exception {
+    DomainResponse r =
+        RdapClient.MAPPER.readValue(Fixtures.domainFollowResponse(), DomainResponse.class);
+    Redaction redacted = r.getRedacted();
+    assertThat(redacted).isNotNull();
+    assertThat(redacted.getHandle()).isEqualTo(RedactionMethod.REPLACEMENT_VALUE);
+    assertThat(redacted.getRegistrar())
+        .containsExactly(entry("iana_id", RedactionMethod.REPLACEMENT_VALUE));
+    assertThat(redacted.getEntities()).containsOnlyKeys("registrant");
+    assertThat(redacted.getEntities().get("registrant"))
+        .containsExactly(
+            entry("email", RedactionMethod.REMOVAL), entry("name", RedactionMethod.EMPTY_VALUE));
+  }
+
+  @Test
+  void redactionPassesAnUnknownMethodThrough() throws Exception {
+    String json = "{\"entities\":{\"registrant\":{\"name\":\"someFutureMethod\"}}}";
+    Redaction redacted = RdapClient.MAPPER.readValue(json, Redaction.class);
+    assertThat(redacted.getHandle()).isNull();
+    assertThat(redacted.getRegistrar()).isEmpty();
+    assertThat(redacted.getEntities().get("registrant").get("name")).isEqualTo("someFutureMethod");
   }
 
   @Test
@@ -49,6 +87,7 @@ class ResponsesTest {
     assertThat(r.getRemarks().get(0).getTitle()).isEqualTo("description");
     assertThat(r.getRemarks().get(0).getDescription()).isEqualTo("Google DNS");
     assertThat(r.getPort43()).isEqualTo("whois.arin.net");
+    assertThat(r.getGeofeed()).isEqualTo("https://geofeed.example.net/geofeed.csv");
   }
 
   @Test
@@ -60,6 +99,7 @@ class ResponsesTest {
     assertThat(r.getEndAutnum()).isEqualTo(15169);
     assertThat(r.getStatus()).containsExactly("active");
     assertThat(r.getType()).isNull();
+    assertThat(r.getCountry()).isEqualTo("US");
     assertThat(r.getPort43()).isEqualTo("whois.arin.net");
   }
 
@@ -98,10 +138,10 @@ class ResponsesTest {
   void parseBulkDomainResponse() throws Exception {
     BulkDomainResponse r =
         RdapClient.MAPPER.readValue(Fixtures.bulkResponse(), BulkDomainResponse.class);
-    assertThat(r.getSummary().getTotal()).isEqualTo(2);
+    assertThat(r.getSummary().getTotal()).isEqualTo(3);
     assertThat(r.getSummary().getSuccessful()).isEqualTo(1);
-    assertThat(r.getSummary().getFailed()).isEqualTo(1);
-    assertThat(r.getResults()).hasSize(2);
+    assertThat(r.getSummary().getFailed()).isEqualTo(2);
+    assertThat(r.getResults()).hasSize(3);
 
     BulkDomainResult success = r.getResults().get(0);
     assertThat(success.getDomain()).isEqualTo("google.com");
@@ -115,6 +155,15 @@ class ResponsesTest {
     assertThat(failure.getError()).isEqualTo("invalid_domain");
     assertThat(failure.getMessage()).isEqualTo("The provided domain name is not valid.");
     assertThat(failure.getData()).isNull();
+    assertThat(failure.getMeta()).isNull();
+
+    BulkDomainResult notFound = r.getResults().get(2);
+    assertThat(notFound.getError()).isEqualTo("not_found");
+    assertThat(notFound.getMeta().getServer()).isEqualTo("rdap.verisign.com");
+    assertThat(notFound.getMeta().getSource()).isEqualTo("rdap");
+    // The API omits cache state from a failed entry's partial meta: null, not "served live".
+    assertThat(notFound.getMeta().getCached()).isNull();
+    assertThat(notFound.getMeta().getCacheExpires()).isNull();
   }
 
   @Test
@@ -151,16 +200,17 @@ class ResponsesTest {
   @Test
   void parseTldListResponse() throws Exception {
     TldListResponse r = RdapClient.MAPPER.readValue(Fixtures.tldsResponse(), TldListResponse.class);
-    assertThat(r.getMeta().getCount()).isEqualTo(2);
+    assertThat(r.getMeta().getCount()).isEqualTo(3);
     assertThat(r.getMeta().getCoverage()).isEqualTo(0.5);
     assertThat(r.getMeta().getComputedAt()).isEqualTo("2026-04-22T10:00:00Z");
     assertThat(r.getMeta().getThresholds().getAlways()).isEqualTo(0.99);
     assertThat(r.getMeta().getThresholds().getUsually()).isEqualTo(0.8);
     assertThat(r.getMeta().getThresholds().getSometimes()).isEqualTo(0.0);
-    assertThat(r.getData()).hasSize(2);
+    assertThat(r.getData()).hasSize(3);
     assertThat(r.getData().get(0).getTld()).isEqualTo("com");
+    assertThat(r.getData().get(0).getProtocol()).isEqualTo("rdap");
     assertThat(r.getData().get(0).getSupportedSince()).isEqualTo("2026-03-07T00:00:00Z");
-    assertThat(r.getData().get(0).getRdapServerHost()).isEqualTo("rdap.verisign.com");
+    assertThat(r.getData().get(0).getServer()).isEqualTo("rdap.verisign.com");
     assertThat(r.getData().get(0).getRdapServerUrl())
         .isEqualTo("https://rdap.verisign.com/com/v1/");
     assertThat(r.getData().get(0).getFieldAvailability()).isNotNull();
@@ -175,14 +225,29 @@ class ResponsesTest {
     assertThat(r.getData().get(0).getFieldAvailability().getStatus())
         .isEqualTo(AvailabilityLevel.ALWAYS);
     assertThat(r.getData().get(1).getFieldAvailability()).isNull();
+
+    TldEntry whoisServed = r.getData().get(2);
+    assertThat(whoisServed.getTld()).isEqualTo("it");
+    assertThat(whoisServed.getProtocol()).isEqualTo("whois");
+    assertThat(whoisServed.getServer()).isEqualTo("whois.nic.it");
+    assertThat(whoisServed.getRdapServerHost()).isNull();
+    assertThat(whoisServed.getRdapServerUrl()).isNull();
+    assertThat(whoisServed.getFieldAvailability()).isNull();
   }
 
   @Test
   void parseTldResponse() throws Exception {
     TldResponse r = RdapClient.MAPPER.readValue(Fixtures.tldResponse(), TldResponse.class);
     assertThat(r.getData().getTld()).isEqualTo("com");
+    assertThat(r.getData().getServer()).isEqualTo("rdap.verisign.com");
     assertThat(r.getMeta().getComputedAt()).isEqualTo("2026-04-22T10:00:00Z");
     assertThat(r.getMeta().getThresholds().getAlways()).isEqualTo(0.99);
+  }
+
+  @Test
+  void parsePingResponse() throws Exception {
+    PingResponse r = RdapClient.MAPPER.readValue(Fixtures.pingResponse(), PingResponse.class);
+    assertThat(r.getStatus()).isEqualTo("ok");
   }
 
   @Test

@@ -21,7 +21,13 @@ public class DomainLookup {
       System.out.println("Expires: " + domain.getDates().getExpires());
       System.out.println("Status: " + String.join(", ", domain.getStatus()));
       System.out.println("Nameservers: " + String.join(", ", domain.getNameservers()));
-      System.out.println("DNSSEC: " + (domain.isDnssec() ? "yes" : "no"));
+      System.out.println(
+          "DNSSEC: " + (domain.getDnssec() == null ? "not published" : domain.getDnssec()));
+      System.out.println("Answered by: " + domain.getMeta().getServer());
+      System.out.println("Protocol: " + domain.getMeta().getSource());
+      if (domain.getRedacted() != null) {
+        System.out.println("Registrar fields withheld: " + domain.getRedacted().getRegistrar());
+      }
 
       // With registrar follow-through.
       DomainResponse followed = client.domain("google.com", new DomainOptions().follow(true));

@@ -27,12 +27,14 @@ public class TldsCatalog {
         if (shown++ >= 5) break;
         FieldAvailability availability = tld.getFieldAvailability();
         if (availability == null) {
-          System.out.printf(".%s via %s (not enough data yet)%n", tld.getTld(), tld.getRdapServerHost());
+          System.out.printf(
+              ".%s via %s over %s (no field stats)%n",
+              tld.getTld(), tld.getServer(), tld.getProtocol());
         } else {
           System.out.printf(
               ".%s via %s: registrar=%s, expires_at=%s%n",
               tld.getTld(),
-              tld.getRdapServerHost(),
+              tld.getServer(),
               availability.getRegistrar().toWire(),
               availability.getExpiresAt().toWire());
         }
