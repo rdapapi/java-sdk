@@ -293,7 +293,7 @@ try {
 | `ValidationException` | 400 | Invalid input |
 | `AuthenticationException` | 401 | Invalid or missing API key |
 | `SubscriptionRequiredException` | 403 | Refused for the account: `subscription_required`, `plan_upgrade_required`, or `forbidden` (a blocked IP, which no subscription changes) |
-| `NotFoundException` | 404 | Namespace is covered but no record exists |
+| `NotFoundException` | 404 | Namespace is covered but no record exists, or `domain_reserved` / `not_registrable` |
 | `NotSupportedException` | 404 | Namespace (TLD, IP range, ASN range) is not covered by RDAP |
 | `RequestFailedException` | 422 | Request body failed validation; `getErrors()` names the fields |
 | `RateLimitException` | 429 | Rate limit or quota exceeded |
@@ -309,6 +309,8 @@ message: `invalid_domain`, `invalid_ip`, `invalid_asn`, `invalid_nameserver`, `i
 `payload_too_large`, `request_failed`, `rate_limit_exceeded`, `quota_exceeded`,
 `too_many_requests`, `lookup_failed`, `bad_gateway`, `temporarily_unavailable`,
 `service_unavailable`, `gateway_timeout`, `server_error`.
+
+`NotFoundException` has `getReason()` (the registry's wording, on `domain_reserved`) and `getRegistrableDomain()` (on `not_registrable`), null otherwise; failed bulk entries carry the same two getters.
 
 All exceptions expose `getStatusCode()`, `getErrorCode()`, and `getMessage()`. `RateLimitException`, `UpstreamException` and `TemporarilyUnavailableException` also have `getRetryAfter()` (Integer or null), in seconds. It is read from the `Retry-After` header when there is one — in either RFC 9110 form, delta-seconds or an HTTP-date, since a registry's header is passed through verbatim — and from the body's `retry_after` otherwise.
 

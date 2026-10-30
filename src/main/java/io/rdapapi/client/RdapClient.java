@@ -289,7 +289,13 @@ public final class RdapClient implements AutoCloseable {
         errorCode,
         message,
         retryAfter(response, body),
-        validationErrors(response.statusCode(), body));
+        validationErrors(response.statusCode(), body),
+        textField(body, "reason"),
+        textField(body, "registrable_domain"));
+  }
+
+  private static String textField(JsonNode body, String name) {
+    return body != null && body.path(name).isTextual() ? body.get(name).asText() : null;
   }
 
   /** Seconds to wait, from the header when there is one and the body otherwise. */
@@ -362,7 +368,9 @@ public final class RdapClient implements AutoCloseable {
       String errorCode,
       String message,
       Integer retryAfter,
-      Map<String, List<String>> errors) {
+      Map<String, List<String>> errors,
+      String reason,
+      String registrableDomain) {
     switch (statusCode) {
       case 400:
         return new ValidationException(message, errorCode);
@@ -372,9 +380,9 @@ public final class RdapClient implements AutoCloseable {
         return new SubscriptionRequiredException(message, errorCode);
       case 404:
         if ("not_supported".equals(errorCode)) {
-          return new NotSupportedException(message, errorCode);
+          return new NotSupportedException(message, errorCode, reason, registrableDomain);
         }
-        return new NotFoundException(message, errorCode);
+        return new NotFoundException(message, errorCode, reason, registrableDomain);
       case 422:
         return new RequestFailedException(message, errorCode, errors);
       case 429:

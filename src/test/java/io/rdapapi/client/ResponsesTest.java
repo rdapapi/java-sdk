@@ -167,6 +167,29 @@ class ResponsesTest {
   }
 
   @Test
+  void parseBulkDomainResultReasonAndRegistrableDomain() throws Exception {
+    BulkDomainResponse r =
+        RdapClient.MAPPER.readValue(
+            "{\"results\":["
+                + "{\"domain\":\"si.si\",\"status\":\"error\",\"error\":\"domain_reserved\","
+                + "\"message\":\"This domain is reserved.\","
+                + "\"reason\":\"si.si is forbidden (Rezervirano za RS)\"},"
+                + "{\"domain\":\"www.example.com\",\"status\":\"error\","
+                + "\"error\":\"not_registrable\",\"message\":\"Not a registrable domain.\","
+                + "\"registrable_domain\":\"example.com\"}"
+                + "],\"summary\":{\"total\":2,\"successful\":0,\"failed\":2}}",
+            BulkDomainResponse.class);
+
+    BulkDomainResult reserved = r.getResults().get(0);
+    assertThat(reserved.getReason()).isEqualTo("si.si is forbidden (Rezervirano za RS)");
+    assertThat(reserved.getRegistrableDomain()).isNull();
+
+    BulkDomainResult notRegistrable = r.getResults().get(1);
+    assertThat(notRegistrable.getRegistrableDomain()).isEqualTo("example.com");
+    assertThat(notRegistrable.getReason()).isNull();
+  }
+
+  @Test
   void datesConvenienceMethods() throws Exception {
     DomainResponse r = RdapClient.MAPPER.readValue(Fixtures.domainResponse(), DomainResponse.class);
     assertThat(r.getDates().getRegisteredAt()).isNotNull();

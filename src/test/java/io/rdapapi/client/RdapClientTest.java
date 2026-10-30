@@ -489,6 +489,47 @@ class RdapClientTest {
   }
 
   @Test
+  void error404DomainReservedCarriesReason() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(404)
+            .setBody(
+                "{\"error\":\"domain_reserved\",\"message\":\"This domain is reserved.\","
+                    + "\"reason\":\"si.si is forbidden (Rezervirano za RS)\"}"));
+    RdapClient client = createClient();
+    assertThatThrownBy(() -> client.domain("si.si"))
+        .isInstanceOf(NotFoundException.class)
+        .satisfies(
+            ex -> {
+              NotFoundException e = (NotFoundException) ex;
+              assertThat(e.getErrorCode()).isEqualTo("domain_reserved");
+              assertThat(e.getReason()).isEqualTo("si.si is forbidden (Rezervirano za RS)");
+              assertThat(e.getRegistrableDomain()).isNull();
+            });
+    client.close();
+  }
+
+  @Test
+  void error404NotRegistrableCarriesRegistrableDomain() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(404)
+            .setBody(
+                "{\"error\":\"not_registrable\",\"message\":\"Not a registrable domain.\","
+                    + "\"registrable_domain\":\"example.com\"}"));
+    RdapClient client = createClient();
+    assertThatThrownBy(() -> client.domain("www.example.com"))
+        .isInstanceOf(NotFoundException.class)
+        .satisfies(
+            ex -> {
+              NotFoundException e = (NotFoundException) ex;
+              assertThat(e.getRegistrableDomain()).isEqualTo("example.com");
+              assertThat(e.getReason()).isNull();
+            });
+    client.close();
+  }
+
+  @Test
   void notSupportedRoutingAppliesToIpLookupToo() {
     server.enqueue(
         new MockResponse()

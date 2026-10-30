@@ -46,6 +46,16 @@ class ExceptionsTest {
     NotFoundException ex = new NotFoundException("not found", "not_found");
     assertThat(ex.getStatusCode()).isEqualTo(404);
     assertThat(ex).isInstanceOf(RdapApiException.class);
+    assertThat(ex.getReason()).isNull();
+    assertThat(ex.getRegistrableDomain()).isNull();
+  }
+
+  @Test
+  void notFoundExceptionWithReasonAndRegistrableDomain() {
+    NotFoundException ex =
+        new NotFoundException("reserved", "domain_reserved", "Reserved by the registry", null);
+    assertThat(ex.getReason()).isEqualTo("Reserved by the registry");
+    assertThat(ex.getRegistrableDomain()).isNull();
   }
 
   @Test

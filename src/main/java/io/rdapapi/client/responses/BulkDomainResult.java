@@ -11,6 +11,8 @@ public final class BulkDomainResult {
   private Meta meta;
   private String error;
   private String message;
+  private String reason;
+  private String registrableDomain;
 
   private BulkDomainResult() {}
 
@@ -42,5 +44,15 @@ public final class BulkDomainResult {
 
   public String getMessage() {
     return message;
+  }
+
+  /** The registry's own wording on a {@code domain_reserved} entry, or null. */
+  public String getReason() {
+    return reason;
+  }
+
+  /** The domain to look up instead on a {@code not_registrable} entry, or null. */
+  public String getRegistrableDomain() {
+    return registrableDomain;
   }
 }

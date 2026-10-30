@@ -12,4 +12,9 @@ public class NotSupportedException extends NotFoundException {
   public NotSupportedException(String message, String errorCode) {
     super(message, errorCode);
   }
+
+  public NotSupportedException(
+      String message, String errorCode, String reason, String registrableDomain) {
+    super(message, errorCode, reason, registrableDomain);
+  }
 }
