@@ -770,7 +770,9 @@ class RdapClientTest {
             .setResponseCode(503)
             .setBody(Fixtures.errorResponse("lookup_failed", "RDAP lookup failed.")));
     RdapClient client = createClient();
-    assertThatThrownBy(() -> client.domain("test.com")).isInstanceOf(UpstreamException.class);
+    assertThatThrownBy(() -> client.domain("test.com"))
+        .isInstanceOf(UpstreamException.class)
+        .satisfies(ex -> assertThat(((UpstreamException) ex).getStatusCode()).isEqualTo(503));
     client.close();
   }
 

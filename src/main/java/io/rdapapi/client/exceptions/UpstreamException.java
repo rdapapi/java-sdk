@@ -9,7 +9,11 @@ public class UpstreamException extends RdapApiException {
   }
 
   public UpstreamException(String message, String errorCode, Integer retryAfter) {
-    super(message, 502, errorCode);
+    this(message, errorCode, retryAfter, 502);
+  }
+
+  public UpstreamException(String message, String errorCode, Integer retryAfter, int statusCode) {
+    super(message, statusCode, errorCode);
     this.retryAfter = retryAfter;
   }
 

@@ -388,11 +388,11 @@ public final class RdapClient implements AutoCloseable {
       case 429:
         return new RateLimitException(message, errorCode, retryAfter);
       case 502:
-        return new UpstreamException(message, errorCode, retryAfter);
+        return new UpstreamException(message, errorCode, retryAfter, statusCode);
       case 503:
         // The API sends lookup_failed as 503, as its CDN replaces 502 bodies.
         if ("lookup_failed".equals(errorCode)) {
-          return new UpstreamException(message, errorCode, retryAfter);
+          return new UpstreamException(message, errorCode, retryAfter, statusCode);
         }
         return new TemporarilyUnavailableException(message, errorCode, retryAfter);
       default:
