@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.rdapapi.client.exceptions.*;
 import io.rdapapi.client.responses.*;
@@ -168,7 +169,7 @@ public final class RdapClient implements AutoCloseable {
   public BulkDomainResponse bulkDomains(List<String> domains, DomainOptions options)
       throws IOException, InterruptedException {
     ObjectNode root = MAPPER.createObjectNode();
-    var domainsNode = root.putArray("domains");
+    ArrayNode domainsNode = root.putArray("domains");
     for (String d : domains) {
       domainsNode.add(d);
     }
@@ -381,6 +382,10 @@ public final class RdapClient implements AutoCloseable {
       case 502:
         return new UpstreamException(message, errorCode, retryAfter);
       case 503:
+        // The API sends lookup_failed as 503, as its CDN replaces 502 bodies.
+        if ("lookup_failed".equals(errorCode)) {
+          return new UpstreamException(message, errorCode, retryAfter);
+        }
         return new TemporarilyUnavailableException(message, errorCode, retryAfter);
       default:
         return new RdapApiException(message, statusCode, errorCode);

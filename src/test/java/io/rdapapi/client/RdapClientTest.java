@@ -723,6 +723,17 @@ class RdapClientTest {
   }
 
   @Test
+  void error503LookupFailedThrowsUpstreamException() {
+    server.enqueue(
+        new MockResponse()
+            .setResponseCode(503)
+            .setBody(Fixtures.errorResponse("lookup_failed", "RDAP lookup failed.")));
+    RdapClient client = createClient();
+    assertThatThrownBy(() -> client.domain("test.com")).isInstanceOf(UpstreamException.class);
+    client.close();
+  }
+
+  @Test
   void error502WithoutRetryAfter() {
     server.enqueue(
         new MockResponse()

@@ -297,7 +297,7 @@ try {
 | `NotSupportedException` | 404 | Namespace (TLD, IP range, ASN range) is not covered by RDAP |
 | `RequestFailedException` | 422 | Request body failed validation; `getErrors()` names the fields |
 | `RateLimitException` | 429 | Rate limit or quota exceeded |
-| `UpstreamException` | 502 | Upstream RDAP server failure |
+| `UpstreamException` | 503, 502 | Upstream RDAP server failure (`lookup_failed` on 503) |
 | `TemporarilyUnavailableException` | 503 | Domain data temporarily unavailable |
 
 One exception class can cover several error codes, so where the remedy differs — 403 above is the
